@@ -25,6 +25,11 @@ const MF_SEPARATOR: u32 = 0x00000800;
 const TPM_RIGHTBUTTON: u32 = 0x0002;
 
 const IDI_APPLICATION: usize = 32512;
+const IMAGE_ICON: u32 = 1;
+const LR_DEFAULTCOLOR: u32 = 0x0000;
+const LR_SHARED: u32 = 0x8000;
+const SM_CXSMICON: i32 = 49;
+const SM_CYSMICON: i32 = 50;
 
 const IDM_SETTINGS: usize = 1001;
 const IDM_SYNC: usize = 1002;
@@ -125,6 +130,15 @@ extern "system" {
     fn GetCursorPos(lpPoint: *mut POINT) -> i32;
     fn SetForegroundWindow(hWnd: isize) -> i32;
     fn LoadIconW(hInstance: isize, lpIconName: usize) -> isize;
+    fn LoadImageW(
+        hInst: isize,
+        name: usize,
+        type_: u32,
+        cx: i32,
+        cy: i32,
+        fuLoad: u32,
+    ) -> isize;
+    fn GetSystemMetrics(nIndex: i32) -> i32;
     fn PostMessageW(hWnd: isize, Msg: u32, wParam: usize, lParam: isize) -> i32;
 }
 
@@ -210,13 +224,30 @@ pub fn init_tray(tx: mpsc::UnboundedSender<TrayCommand>) -> Result<(), Box<dyn s
         let hinstance = GetModuleHandleW(null());
         let class_name = to_wide("MeetPounceTrayClass");
 
+        let cx = GetSystemMetrics(SM_CXSMICON);
+        let cy = GetSystemMetrics(SM_CYSMICON);
+        let mut hicon = LoadImageW(
+            hinstance,
+            1,
+            IMAGE_ICON,
+            cx,
+            cy,
+            LR_DEFAULTCOLOR | LR_SHARED,
+        );
+        if hicon == 0 {
+            hicon = LoadIconW(hinstance, 1);
+        }
+        if hicon == 0 {
+            hicon = LoadIconW(0, IDI_APPLICATION);
+        }
+
         let wnd_class = WNDCLASSW {
             style: 0,
             lpfnWndProc: wnd_proc,
             cbClsExtra: 0,
             cbWndExtra: 0,
             hInstance: hinstance,
-            hIcon: 0,
+            hIcon: hicon,
             hCursor: 0,
             hbrBackground: 0,
             lpszMenuName: null(),
@@ -246,7 +277,6 @@ pub fn init_tray(tx: mpsc::UnboundedSender<TrayCommand>) -> Result<(), Box<dyn s
 
         TRAY_HWND.store(hwnd, Ordering::SeqCst);
 
-        let hicon = LoadIconW(0, IDI_APPLICATION);
         let mut nid: NOTIFYICONDATAW = std::mem::zeroed();
         nid.cbSize = std::mem::size_of::<NOTIFYICONDATAW>() as u32;
         nid.hWnd = hwnd;
