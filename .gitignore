@@ -1,0 +1,8 @@
+/target
+*.exe
+**/*.rs.bk
+*.json
+!Cargo.lock
+.env
+.DS_Store
+Thumbs.db
